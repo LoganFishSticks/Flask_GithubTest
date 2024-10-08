@@ -1,50 +1,67 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, Email
+
 app = Flask(__name__)
 
-# route 1 (page 1) #landing page
+# Set a secret key for session management (required for sing flash messages)
+app.config['SECRET_KEY'] = 'mysecretkey123' # Replace with a more secure random string in production
+
+# MySQL database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:password@localhost/myflaskdb'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Disable CSRF protection (optional for development, not recommended for production)
+app.config['WTF_CSRF_ENABLED'] = False
+
+# Initialize the database
+db = SQLAlchemy(app)
+
+# Model for the User table
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+
+# Flask-WTF form for handling user input
+class UserForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Submit')
+
+# route 1: landing page
+@app.route("/")
+def index():
+    users = User.query.all()
+    return render_template("list_users.html",users=users)
+
 @app.route('/')
-def home():
-    return render_template('index.html')
+def team7m2():
+    print("Logan F")
 
-#route 2 (page 2) #user
-@app.route('/user/<name>')
-def user(name):
-    name = request.args.get('username')
-    return render_template('user.html', username=name)
+# route 2: Add User
+@app.route("/add-user", methods=["GET", "POST"])
+def add_user():
+    form = UserForm()
+    if form.validate_on_submit():
+        new_user = User(name=form.name.data, email=form.email.data)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('User added successfully!')
+        return redirect(url_for('index'))
+    return render_template("add_user.html", form=form)
 
-#route 3 (page 3) #user
-@app.route('/stocks')
-def stocks():
-    stocks = ['Apple', 'Microsoft']
-    return render_template('stocks.html', stocks=stocks)
-
-@app.route('/stocks')
-def team1000m1000():
-    print("Rahul Kashyap")
-    
-
-if __name__ == "__main__": app.run(debug=True)
-
-
-
-
-
-
-# from flask import Flask
-# app = Flask(__name__)
-# @app.route("/") 
-# def hello_world(): 
-#     return "Hello, World!"
-# if __name__ == "__main__": app.run(debug=True)
-
-
-
-# @app.route('/user/<name>')
-# def user(name):
-#     username = request.args.get('username')
-#     return render_template('user.html', username=username)
-
-# @app.route('/stocks')
-# def stocks():
-#     stocks = ['Apple', 'Microsoft']
-#     return render_template('stocks.html', stocks=stocks)
+# route 3: Update User
+@app.route("/update-user/<int:id>", methods=["GET","POST"])
+def update_user(id):
+    user = User.query.get_or_404(id)
+    form = UserForm(obj=user)
+    if form.validate_on_submit():
+        user.name = form.name.data
+        user.email = form.email.data
+        db.session.commit()
+        flash('User updated successfully!')
+        return redirect(url_for('index'))
+    return render_template("update_user.html", form=form)
